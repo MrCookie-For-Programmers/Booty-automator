@@ -1,4 +1,4 @@
-ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao)
+ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao) oh and to edit intervall turn the .py into a .txt, goto configurations and change the intervall there
 
 Automated Combinatorial Typist & Macro
 
