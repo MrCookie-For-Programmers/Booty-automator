@@ -1,4 +1,4 @@
-Okay, Philipp, here's the updated plain text for your README, incorporating the inclusion of special characters and the specific file names Booty.py and booty debug.py.
+ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao)
 
 Automated Combinatorial Typist & Macro
 
