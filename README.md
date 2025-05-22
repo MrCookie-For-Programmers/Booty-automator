@@ -1,7 +1,7 @@
 ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao) 
 
 
-CHANGELOGS: Added settings menu (very useful), Added saving progress, added changing amount of macro clicks. have fun! New: Check it out, too many changes to list here. overall important: booty debug is now merged into normal booty, check out the settings!
+CHANGELOGS: Added settings menu (very useful), Added saving progress, added changing amount of macro clicks. have fun! New: Check it out, too many changes to list here. overall important: booty debug is now merged into normal booty, check out the settings! Added an easter egg into the main menu, dont cheat by looking into the code! psst, has to do smt with the ai that coded this)
 
 Automated Combinatorial Typist & Macro
 
