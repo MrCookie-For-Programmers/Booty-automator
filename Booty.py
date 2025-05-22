@@ -14,6 +14,10 @@ click_coords = [] # Stores (x, y) tuples for the macro clicks, dynamically sized
 current_coord_capture_index = 0 # Helper for the setup phase
 mouse_listener_active = False # Flag to control pynput listener
 
+# These are global for setup, but their effective values depend on user input in get_clicks_for_setup
+num_macro_clicks = 0
+num_ignored_clicks_setup = 0
+
 # --- Settings and Configuration ---
 # Define the default settings file path within the user's home directory
 USER_HOME_DIR = os.path.expanduser('~')
@@ -23,8 +27,9 @@ DEFAULT_SETTINGS_FILE = os.path.join(USER_HOME_DIR, 'script_settings.json')
 DEFAULT_SETTINGS = {
     'chars': string.ascii_letters + string.digits + string.punctuation,
     'delay_between_repetitions': 0.1, # Seconds to wait after a string has been processed
-    'delay_between_macro_clicks': 0.01, # New: Seconds to wait between individual macro clicks
-    'pyautogui_write_interval': 0.0, # New: Seconds to wait between each character typed by pyautogui.write
+    'delay_between_macro_clicks': 0.01, # Seconds to wait between individual macro clicks
+    'pyautogui_write_interval': 0.0, # Seconds to wait between each character typed by pyautogui.write
+    'initial_delay_before_automation': 10.0, # Seconds to wait before the automation loop starts
     'progress_file_path': 'progress.txt', # Default path for the progress file (relative to script execution)
     'settings_file_path': DEFAULT_SETTINGS_FILE # Path where settings are saved (this will be updated if user changes it)
 }
@@ -47,17 +52,20 @@ def load_settings(file_path):
     """
     global settings
     loaded_settings = {}
-    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        try:
-            with open(file_path, 'r') as f:
-                loaded_settings = json.load(f)
-            print(f"[INFO] Settings loaded from '{file_path}'.")
-        except json.JSONDecodeError:
-            print(f"[WARNING] Settings file '{file_path}' is corrupted or invalid JSON. Using default settings.")
-        except Exception as e:
-            print(f"[WARNING] Could not read settings file '{file_path}': {e}. Using default settings.")
+    if os.path.exists(file_path):
+        if os.path.getsize(file_path) > 0:
+            try:
+                with open(file_path, 'r') as f:
+                    loaded_settings = json.load(f)
+                print(f"[INFO] Settings loaded from '{file_path}'.")
+            except json.JSONDecodeError as e:
+                print(f"[WARNING] Settings file '{file_path}' is corrupted or invalid JSON ({e}). Using default settings.")
+            except Exception as e:
+                print(f"[WARNING] Could not read settings file '{file_path}': {e}. Using default settings.")
+        else:
+            print(f"[INFO] Settings file '{file_path}' is empty. Using default settings.")
     else:
-        print(f"[INFO] Settings file '{file_path}' not found or empty. Using default settings.")
+        print(f"[INFO] Settings file '{file_path}' not found. Using default settings.")
 
     # Merge loaded settings with defaults to ensure all keys are present
     current_settings = DEFAULT_SETTINGS.copy()
@@ -77,7 +85,7 @@ def save_settings(file_path, settings_data):
         # Ensure the directory for the settings file exists
         settings_dir = os.path.dirname(file_path)
         if settings_dir and not os.path.exists(settings_dir):
-            os.makedirs(settings_dir, exist_ok=True) # Create directory if it doesn't exist
+            os.makedirs(settings_dir, exist_ok=True)
             print(f"[INFO] Created directory for settings: '{settings_dir}'")
 
         with open(file_path, 'w') as f:
@@ -93,15 +101,19 @@ def load_progress(file_path):
     Loads the last saved combination from the progress file.
     Returns None if file doesn't exist, is empty, or has invalid content.
     """
-    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-        print(f"[INFO] Progress file '{file_path}' not found or is empty. Starting from 'a'.")
+    if not os.path.exists(file_path):
+        print(f"[INFO] Progress file '{file_path}' not found. Starting from 'a'.")
         return None # No previous progress
+    
+    if os.path.getsize(file_path) == 0:
+        print(f"[INFO] Progress file '{file_path}' is empty. Starting from 'a'.")
+        return None
 
     try:
         with open(file_path, 'r') as f:
             last_progress = f.readline().strip()
             if not last_progress:
-                print(f"[INFO] Progress file '{file_path}' is empty. Starting from 'a'.")
+                print(f"[INFO] Progress file '{file_path}' is empty after read. Starting from 'a'.")
                 return None
             
             # Basic validation: ensure all chars in last_progress are in CHARS set
@@ -151,7 +163,7 @@ def on_click_for_setup(x, y, button, pressed):
     global current_coord_capture_index, mouse_listener_active, click_coords, num_macro_clicks, num_ignored_clicks_setup
 
     if pressed: # Only act on mouse down event
-        current_coord_capture_index += 1 # Total clicks seen so far
+        current_coord_capture_index += 1
 
         # If we are still in the 'ignored clicks' phase
         if current_coord_capture_index <= num_ignored_clicks_setup:
@@ -196,7 +208,7 @@ def get_clicks_for_setup():
         except ValueError:
             print("[ERROR] Please enter a valid number or 0.")
 
-    if num_macro_clicks == 0: # If user entered 0 clicks, it's also a form of "skip"
+    if num_macro_clicks == 0:
         print("[INFO] 0 macro clicks selected. Skipping coordinate capture.")
         return True # Treat as successful setup, just no clicks to perform
 
@@ -212,7 +224,8 @@ def get_clicks_for_setup():
             print("[ERROR] Please enter a valid number.")
 
     # Dynamically size the click_coords list based on user input
-    click_coords = [None] * num_macro_clicks
+    click_coords.clear() # Clear any previous clicks
+    click_coords.extend([None] * num_macro_clicks)
     current_coord_capture_index = 0 # Reset total clicks seen for new setup
 
     print("\n--- Start Capturing Coordinates ---")
@@ -221,7 +234,6 @@ def get_clicks_for_setup():
     print(f"Then, click on the exact {num_macro_clicks} positions where you want the script to click.")
     print(f"Total clicks expected: {num_ignored_clicks_setup + num_macro_clicks}")
     
-    # Give a brief moment for the user to read the prompts before listening
     time.sleep(0.5) 
 
     mouse_listener_active = True
@@ -231,7 +243,6 @@ def get_clicks_for_setup():
     # Final check if all clicks were indeed captured
     if None in click_coords:
         print("[WARNING] Not all desired macro coordinates were captured during setup. Macro clicks may be incomplete.")
-        # Decide if this is a failure or just a warning; for now, treat as successful but with warning
         return True # Still return True, so the script runs but with incomplete clicks
     else:
         print("\nSetup complete. All required coordinates captured!")
@@ -251,16 +262,19 @@ def generate_all_combinations(start_combination=None):
 
     if start_combination:
         start_length = len(start_combination)
-        print(f"[INFO] Attempting to resume from length {start_length} to find '{start_combination}'...")
+        print(f"[INFO] Attempting to resume from '{start_combination}'...")
         
         # Iterate up to the starting length to find the start_combination
         for length_iter in itertools.count(1):
-            if STOP_SCRIPT: return
+            if STOP_SCRIPT: 
+                return
+            
             if length_iter < start_length: # Skip lengths shorter than the start_combination's length
                 continue # Move to the next length
 
             for combo_tuple in itertools.product(chars_set, repeat=length_iter):
-                if STOP_SCRIPT: return
+                if STOP_SCRIPT: 
+                    return
                 current_combo_str = ''.join(combo_tuple)
 
                 # If we are at the start_combination, start yielding from here
@@ -276,8 +290,9 @@ def generate_all_combinations(start_combination=None):
                 print(f"[WARNING] Resume point '{start_combination}' was not found in generated sequence (it might be invalid or deleted from character set). Starting from 'a'.")
                 start_combination = None # Reset to start from the beginning
                 started_yielding = True # Force yielding from now on, starting with 'a'
+                break # Break here to start main generation loop from length 1
 
-        if not started_yielding:
+        if not started_yielding: # This case is if start_combination was provided but somehow not found (e.g., too long)
              print(f"[WARNING] Resume point '{start_combination}' was not found (too long or invalid). Starting from 'a'.")
              start_combination = None
              started_yielding = True # Force yielding from now on, starting with 'a'
@@ -290,26 +305,28 @@ def generate_all_combinations(start_combination=None):
 
 
     for length in itertools.count(actual_start_length_for_gen):
-        if STOP_SCRIPT: return
+        if STOP_SCRIPT: 
+            return
         print(f"\n[INFO] Generating combinations for length: {length} (Total possible: {len(chars_set)**length})")
         
         skip_to_start_combo = False
+        # If we just finished searching for a resume point and it was *not* found, and length matches, we are now at the start of the next combo
         if start_combination and length == len(start_combination) and not started_yielding:
             skip_to_start_combo = True
             
         for combo_tuple in itertools.product(chars_set, repeat=length):
-            if STOP_SCRIPT: return
+            if STOP_SCRIPT: 
+                return
             current_combo_str = ''.join(combo_tuple)
             
             if skip_to_start_combo:
                 if current_combo_str == start_combination:
                     skip_to_start_combo = False # Found it, stop skipping
-                    started_yielding = True # Ensure this flag is set
+                    started_yielding = True # Ensure this flag is set for subsequent iterations
                 continue # Keep skipping until we find the start_combination
             
-            if started_yielding or start_combination is None:
-                 yield current_combo_str
-
+            if started_yielding or start_combination is None: # Only yield if we've passed the resume point or no resume point was set
+                yield current_combo_str
 
 # --- Core Action Functions ---
 def type_the_string(current_string):
@@ -318,7 +335,7 @@ def type_the_string(current_string):
     print(f"[ACTION] Typing: '{current_string}' (Length: {len(current_string)})")
     pyautogui.write(current_string, interval=write_interval)
     pyautogui.press('enter')
-    print("[ACTION] Enter pressed.")
+    print(f"[ACTION] Enter pressed.")
 
 def perform_macro_clicks():
     """Performs the specific click combination using the globally captured coordinates."""
@@ -382,10 +399,11 @@ def display_settings_menu():
         print(f"Delay Between Repetitions: {settings.get('delay_between_repetitions', DEFAULT_SETTINGS['delay_between_repetitions'])}s")
         print(f"Delay Between Macro Clicks: {settings.get('delay_between_macro_clicks', DEFAULT_SETTINGS['delay_between_macro_clicks'])}s")
         print(f"PyAutoGUI Write Interval: {settings.get('pyautogui_write_interval', DEFAULT_SETTINGS['pyautogui_write_interval'])}s")
+        print(f"Initial Delay Before Automation: {settings.get('initial_delay_before_automation', DEFAULT_SETTINGS['initial_delay_before_automation'])}s")
         print(f"Character Set: '{settings.get('chars', DEFAULT_SETTINGS['chars'])}'")
         print("\n1. Change File Paths")
         print("2. Change Intervals")
-        print("3. Change Character Set") # New option for character set customization
+        print("3. Change Character Set")
         print("B. Back to Main Menu")
 
         choice = input("Enter your choice: ").strip().lower()
@@ -441,9 +459,10 @@ def display_intervals_menu():
         print(f"1. Delay Between Repetitions (Current: {settings['delay_between_repetitions']}s)")
         print(f"2. Delay Between Macro Clicks (Current: {settings['delay_between_macro_clicks']}s)")
         print(f"3. PyAutoGUI Write Interval (Current: {settings['pyautogui_write_interval']}s)")
+        print(f"4. Initial Delay Before Automation (Current: {settings['initial_delay_before_automation']}s)")
         print("B. Back to Settings Menu")
 
-        choice = input("Enter your choice (1, 2, 3, or B): ").strip().lower()
+        choice = input("Enter your choice (1, 2, 3, 4, or B): ").strip().lower()
 
         try:
             if choice == '1':
@@ -467,10 +486,17 @@ def display_intervals_menu():
                     save_settings(settings['settings_file_path'], settings)
                 else:
                     print("[ERROR] Interval cannot be negative.")
+            elif choice == '4':
+                new_delay = float(input("Enter new initial delay before automation starts (seconds): ").strip())
+                if new_delay >= 0:
+                    settings['initial_delay_before_automation'] = new_delay
+                    save_settings(settings['settings_file_path'], settings)
+                else:
+                    print("[ERROR] Delay cannot be negative.")
             elif choice == 'b':
                 break
             else:
-                print("[ERROR] Invalid choice. Please enter 1, 2, 3, or B.")
+                print("[ERROR] Invalid choice. Please enter 1, 2, 3, 4, or B.")
         except ValueError:
             print("[ERROR] Invalid input. Please enter a number.")
 
@@ -494,16 +520,12 @@ def change_character_set():
 
 # --- Main Execution Block ---
 if __name__ == "__main__":
-    # Ensure pyautogui fail-safe is enabled and interval is 0 for initial operations
-    pyautogui.FAILSAFE = True
-    pyautogui.PAUSE = 0 # Set to 0 initially for menu interactions
-
     print("--- Python Combination Generator & Automation Script ---")
     print("This script systematically generates string combinations, types them,")
     print("and performs actions based on your configuration.")
 
     # 1. Determine and load settings
-    settings_file_chosen = DEFAULT_SETTINGS_FILE # Use the auto-created path
+    settings_file_chosen = DEFAULT_SETTINGS_FILE
     load_settings(settings_file_chosen) # Load settings (or defaults if file invalid/missing)
     # Ensure the settings file path itself is correctly stored in settings for future saves
     settings['settings_file_path'] = settings_file_chosen
@@ -520,7 +542,8 @@ if __name__ == "__main__":
     # --- Main Application Loop (keeps the script running until explicitly quit) ---
     while True:
         # Reset STOP_SCRIPT flag before entering automation if it was set by a previous run's interruption
-        STOP_SCRIPT = False 
+        if STOP_SCRIPT:
+            STOP_SCRIPT = False 
 
         run_automation_chosen, with_macro_clicks_chosen = display_main_menu()
 
@@ -529,7 +552,11 @@ if __name__ == "__main__":
 
         # User chose to run automation (either with or without macro clicks)
         pyautogui.PAUSE = settings.get('pyautogui_write_interval', DEFAULT_SETTINGS['pyautogui_write_interval'])
+        pyautogui.FAILSAFE = True
         
+        # Determine the initial delay from settings
+        initial_delay = settings.get('initial_delay_before_automation', DEFAULT_SETTINGS['initial_delay_before_automation'])
+
         # Handle macro clicks setup if chosen
         if with_macro_clicks_chosen:
             print("\n[INFO] Please read the instructions below carefully before proceeding.")
@@ -538,8 +565,8 @@ if __name__ == "__main__":
             print("\n[INFO] To STOP THE SCRIPT GRACEFULLY during the loop: Press 'Ctrl+Shift+C+V'.")
             print("       Alternatively, move your mouse to any of the four corners of your screen (pyautogui fail-safe).")
             print("       Or, press Ctrl+C in the terminal to force quit.")
-            print("\n[INFO] Waiting 10 seconds. Use this time to prepare your target application and read the instructions.")
-            time.sleep(10)
+            print(f"\n[INFO] Waiting {initial_delay} seconds. Use this time to prepare your target application and read the instructions.")
+            time.sleep(initial_delay)
 
             setup_successful = get_clicks_for_setup()
             if not setup_successful:
@@ -554,8 +581,8 @@ if __name__ == "__main__":
             print("\n[INFO] To STOP THE SCRIPT GRACEFULLY during the loop: Press 'Ctrl+Shift+C+V'.")
             print("       Alternatively, move your mouse to any of the four corners of your screen (pyautogui fail-safe).")
             print("       Or, press Ctrl+C in the terminal to force quit.")
-            print("\n[INFO] Waiting 10 seconds. Use this time to prepare your target application and read the instructions.")
-            time.sleep(10)
+            print(f"\n[INFO] Waiting {initial_delay} seconds. Use this time to prepare your target application and read the instructions.")
+            time.sleep(initial_delay)
 
 
         # --- Automation Loop (this block only executes if setup was successful or no macro clicks chosen) ---
@@ -579,28 +606,28 @@ if __name__ == "__main__":
                         perform_macro_clicks()
                 except pyautogui.FailSafeException:
                     print("\n[CRITICAL ERROR] pyautogui Fail-safe triggered during action. Returning to Main Menu.")
-                    # Set STOP_SCRIPT to ensure clean break, although break here will also work
-                    STOP_SCRIPT = True 
+                    STOP_SCRIPT = True  # Set STOP_SCRIPT to ensure clean break
                     break # Break the for loop
                 except Exception as e:
                     print(f"[ERROR] An unexpected error occurred during action for string '{current_string}': {e}.")
-                    print("        Attempting to continue to the next combination.")
+                    print("         Attempting to continue to the next combination.")
                 
                 if STOP_SCRIPT: # Check again in case an error occurred right before sleep or another hotkey press
-                    print("[INFO] Stop flag set (hotkey triggered). Exiting automation loop to Main Menu.")
                     break
 
                 save_progress(progress_file_path, current_string)
                 print(f"[INFO] Progress saved: '{current_string}'")
 
-                print(f"[INFO] Waiting {settings.get('delay_between_repetitions', DEFAULT_SETTINGS['delay_between_repetitions'])} second before next combination...")
-                time.sleep(settings.get('delay_between_repetitions', DEFAULT_SETTINGS['delay_between_repetitions']))
+                delay = settings.get('delay_between_repetitions', DEFAULT_SETTINGS['delay_between_repetitions'])
+                print(f"[INFO] Waiting {delay} second before next combination...")
+                time.sleep(delay)
+
+            else: # This 'else' block executes if the 'for current_string in generator' loop finishes WITHOUT a 'break'
+                print("[INFO] Automation loop finished unexpectedly (generator exhausted). This shouldn't happen.")
 
         except KeyboardInterrupt:
             print("\n[INFO] Ctrl+C detected. Returning to Main Menu.")
-            # Set STOP_SCRIPT and let the loop naturally break, or just break here.
-            # Breaking here directly moves to finally block.
-            STOP_SCRIPT = True 
+            STOP_SCRIPT = True  
             pass # The outer loop will handle returning to main menu.
         except Exception as e:
             print(f"\n[CRITICAL ERROR] A critical error occurred in the main automation loop: {e}. Returning to Main Menu.")
@@ -615,5 +642,5 @@ if __name__ == "__main__":
 # --- Final cleanup and actual script exit (only happens if user chose 'Q' from main menu) ---
 print("\n--- Script Exiting ---")
 keyboard.unhook_all()
-input("Press Enter to exit...") # This will only show if 'Q' was pressed in main menu
+input("Press Enter to exit...")
 sys.exit(0)
