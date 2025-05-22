@@ -14,7 +14,7 @@ click_coords = [] # Stores (x, y) tuples for the macro clicks, dynamically sized
 current_coord_capture_index = 0 # Helper for the setup phase
 mouse_listener_active = False # Flag to control pynput listener
 
-# These are global for setup, but their effective values depend on user input in get_clicks_for_setup
+# These are global for setup, but their effective values depends on user input in get_clicks_for_setup
 num_macro_clicks = 0
 num_ignored_clicks_setup = 0
 
@@ -30,7 +30,7 @@ DEFAULT_SETTINGS = {
     'delay_between_macro_clicks': 0.01, # New: Seconds to wait between individual macro clicks
     'pyautogui_write_interval': 0.0, # New: Seconds to wait between each character typed by pyautogui.write
     'initial_delay_before_automation': 10.0, # NEW: Seconds to wait before the automation loop starts
-    'progress_file_path': 'progress.txt', # Default path for the progress file (relative to script execution)
+    'progress_file_path': os.path.join(USER_HOME_DIR, 'progress.txt'), # DEFAULT path for the progress file in user's home directory
     'settings_file_path': DEFAULT_SETTINGS_FILE # Path where settings are saved (this will be updated if user changes it)
 }
 
@@ -172,19 +172,36 @@ def save_progress(file_path, current_string):
         print(f"[DEBUG] Exception during save_progress: {e}")
 
 def reset_progress(file_path):
-    """Resets the progress by deleting the progress file or clearing its content."""
+    """Resets the progress by deleting the progress file and immediately creating an empty one."""
     print(f"[DEBUG] Attempting to reset progress file: '{file_path}'")
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
-            print(f"[INFO] Progress file '{file_path}' deleted. Progress reset.")
+            print(f"[INFO] Progress file '{file_path}' deleted.")
             print(f"[DEBUG] File '{file_path}' removed.")
         except OSError as e:
             print(f"[ERROR] Could not delete progress file '{file_path}': {e}. Please delete it manually if needed.")
-            print(f"[DEBUG] OSError during reset_progress: {e}.")
+            print(f"[DEBUG] OSError during reset_progress (deletion): {e}.")
     else:
-        print(f"[INFO] Progress file '{file_path}' does not exist. No reset needed.")
-        print(f"[DEBUG] File '{file_path}' did not exist, no action needed for reset.")
+        print(f"[INFO] Progress file '{file_path}' does not exist. No deletion needed.")
+        print(f"[DEBUG] File '{file_path}' did not exist, no action needed for deletion.")
+    
+    # Always create a new empty file after deletion or if it didn't exist
+    try:
+        # Ensure the directory exists before creating the file
+        progress_dir = os.path.dirname(file_path)
+        if progress_dir and not os.path.exists(progress_dir):
+            os.makedirs(progress_dir, exist_ok=True)
+            print(f"[INFO] Created directory for new progress file: '{progress_dir}'")
+            print(f"[DEBUG] Directory '{progress_dir}' created for new progress file.")
+        with open(file_path, 'w') as f:
+            f.write('') # Create an empty file
+        print(f"[INFO] New empty progress file created at '{file_path}'. Progress reset.")
+        print(f"[DEBUG] Empty file '{file_path}' created after reset.")
+    except Exception as e:
+        print(f"[ERROR] Could not create new empty progress file at '{file_path}': {e}")
+        print(f"[DEBUG] Exception during reset_progress (creation): {e}.")
+
     input("Press Enter to continue...") # Pause for user to read
 
 # --- Mouse Listener Callback for Setup ---
@@ -551,10 +568,32 @@ def display_file_paths_menu():
             new_path = input(f"Enter new progress file path (current: {settings['progress_file_path']}): ").strip()
             print(f"[DEBUG] User entered new progress file path: '{new_path}'.")
             if new_path:
+                # Ensure the new path points to a directory within USER_HOME_DIR if it's just a filename
+                if os.path.basename(new_path) == new_path: # If it's just a filename, assume it's in USER_HOME_DIR
+                    new_path = os.path.join(USER_HOME_DIR, new_path)
+                    print(f"[DEBUG] New progress path was just a filename, assumed in USER_HOME_DIR: '{new_path}'")
+
                 settings['progress_file_path'] = new_path
                 save_settings(settings['settings_file_path'], settings) # Save updated progress path to settings file
                 print(f"[INFO] Progress file path updated to '{new_path}'.")
                 print(f"[DEBUG] settings['progress_file_path'] updated to '{new_path}'. Settings saved to reflect change.")
+                
+                # Also, ensure the directory for the new path exists and create the file
+                progress_dir = os.path.dirname(new_path)
+                if progress_dir and not os.path.exists(progress_dir):
+                    os.makedirs(progress_dir, exist_ok=True)
+                    print(f"[INFO] Created directory for new progress file: '{progress_dir}'")
+                    print(f"[DEBUG] Directory '{progress_dir}' created for new progress file path.")
+                if not os.path.exists(new_path):
+                    try:
+                        with open(new_path, 'w') as f:
+                            f.write('')
+                        print(f"[INFO] Created empty progress file at new path: '{new_path}'")
+                        print(f"[DEBUG] Empty file '{new_path}' created after path change.")
+                    except Exception as e:
+                        print(f"[ERROR] Could not create empty progress file at '{new_path}': {e}")
+                        print(f"[DEBUG] Exception during creating empty progress file after path change: {e}")
+
             else:
                 print("[INFO] Path not changed.")
                 print("[DEBUG] User left path empty. No change to progress file path.")
@@ -677,6 +716,25 @@ if __name__ == "__main__":
     print(f"[DEBUG] settings['settings_file_path'] confirmed as '{settings['settings_file_path']}'.")
     save_settings(settings['settings_file_path'], settings) # Save defaults if new file was created or existing updated
     print(f"[DEBUG] Initial settings state after load/save: {settings}")
+
+    # Ensure the progress file exists at script start
+    progress_file_path = settings.get('progress_file_path', DEFAULT_SETTINGS['progress_file_path'])
+    print(f"[DEBUG] Checking existence of progress file at: '{progress_file_path}'.")
+    progress_dir = os.path.dirname(progress_file_path)
+    if progress_dir and not os.path.exists(progress_dir):
+        os.makedirs(progress_dir, exist_ok=True)
+        print(f"[INFO] Created directory for progress file: '{progress_dir}'")
+        print(f"[DEBUG] Directory '{progress_dir}' created for progress file at start.")
+    if not os.path.exists(progress_file_path):
+        try:
+            with open(progress_file_path, 'w') as f:
+                f.write('') # Create an empty file
+            print(f"[INFO] Created empty progress file at: '{progress_file_path}'")
+            print(f"[DEBUG] Empty progress file '{progress_file_path}' created at script start.")
+        except Exception as e:
+            print(f"[ERROR] Could not create empty progress file at '{progress_file_path}': {e}")
+            print(f"[DEBUG] Exception during initial progress file creation: {e}")
+
 
     # 2. Register the stop hotkey
     print("[DEBUG] Attempting to register hotkey 'ctrl+shift+c+v'.")
