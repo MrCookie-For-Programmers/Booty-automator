@@ -29,6 +29,7 @@ DEFAULT_SETTINGS = {
     'delay_between_repetitions': 0.1, # Seconds to wait after a string has been processed
     'delay_between_macro_clicks': 0.01, # New: Seconds to wait between individual macro clicks
     'pyautogui_write_interval': 0.0, # New: Seconds to wait between each character typed by pyautogui.write
+    'initial_delay_before_automation': 10.0, # NEW: Seconds to wait before the automation loop starts
     'progress_file_path': 'progress.txt', # Default path for the progress file (relative to script execution)
     'settings_file_path': DEFAULT_SETTINGS_FILE # Path where settings are saved (this will be updated if user changes it)
 }
@@ -497,6 +498,7 @@ def display_settings_menu():
         print(f"Delay Between Repetitions: {settings.get('delay_between_repetitions', DEFAULT_SETTINGS['delay_between_repetitions'])}s")
         print(f"Delay Between Macro Clicks: {settings.get('delay_between_macro_clicks', DEFAULT_SETTINGS['delay_between_macro_clicks'])}s")
         print(f"PyAutoGUI Write Interval: {settings.get('pyautogui_write_interval', DEFAULT_SETTINGS['pyautogui_write_interval'])}s")
+        print(f"Initial Delay Before Automation: {settings.get('initial_delay_before_automation', DEFAULT_SETTINGS['initial_delay_before_automation'])}s") # NEW
         print(f"Character Set: '{settings.get('chars', DEFAULT_SETTINGS['chars'])}'")
         print("\n1. Change File Paths")
         print("2. Change Intervals")
@@ -533,7 +535,6 @@ def display_file_paths_menu():
         print("B. Back to Settings Menu")
 
         choice = input("Enter your choice (1, 2, or B): ").strip().lower()
-        print(f"[DEBUG] User choice in file paths menu: '{choice}'.")
 
         if choice == '1':
             new_path = input(f"Enter new settings file path (current: {settings['settings_file_path']}): ").strip()
@@ -574,9 +575,10 @@ def display_intervals_menu():
         print(f"1. Delay Between Repetitions (Current: {settings['delay_between_repetitions']}s)")
         print(f"2. Delay Between Macro Clicks (Current: {settings['delay_between_macro_clicks']}s)")
         print(f"3. PyAutoGUI Write Interval (Current: {settings['pyautogui_write_interval']}s)")
+        print(f"4. Initial Delay Before Automation (Current: {settings['initial_delay_before_automation']}s)") # NEW
         print("B. Back to Settings Menu")
 
-        choice = input("Enter your choice (1, 2, 3, or B): ").strip().lower()
+        choice = input("Enter your choice (1, 2, 3, 4, or B): ").strip().lower() # Updated choices
         print(f"[DEBUG] User choice in intervals menu: '{choice}'.")
 
         try:
@@ -610,11 +612,21 @@ def display_intervals_menu():
                 else:
                     print("[ERROR] Interval cannot be negative.")
                     print("[DEBUG] Negative interval input for pyautogui write.")
+            elif choice == '4': # NEW OPTION FOR INITIAL DELAY
+                new_delay = float(input("Enter new initial delay before automation starts (seconds): ").strip())
+                print(f"[DEBUG] User entered new initial_delay_before_automation: {new_delay}.")
+                if new_delay >= 0:
+                    settings['initial_delay_before_automation'] = new_delay
+                    save_settings(settings['settings_file_path'], settings)
+                    print(f"[DEBUG] initial_delay_before_automation updated to {new_delay}s and settings saved.")
+                else:
+                    print("[ERROR] Delay cannot be negative.")
+                    print("[DEBUG] Negative delay input for initial automation delay.")
             elif choice == 'b':
                 print("[DEBUG] User chose 'B'. Exiting intervals menu.")
                 break
             else:
-                print("[ERROR] Invalid choice. Please enter 1, 2, 3, or B.")
+                print("[ERROR] Invalid choice. Please enter 1, 2, 3, 4, or B.") # Updated message
                 print(f"[DEBUG] Invalid choice '{choice}'. Re-displaying intervals menu.")
         except ValueError:
             print("[ERROR] Invalid input. Please enter a number.")
@@ -696,6 +708,9 @@ if __name__ == "__main__":
         pyautogui.PAUSE = settings.get('pyautogui_write_interval', DEFAULT_SETTINGS['pyautogui_write_interval'])
         print(f"[DEBUG] pyautogui.PAUSE set to {pyautogui.PAUSE}s for automation based on settings.")
         
+        # Determine the initial delay from settings
+        initial_delay = settings.get('initial_delay_before_automation', DEFAULT_SETTINGS['initial_delay_before_automation'])
+
         # Handle macro clicks setup if chosen
         if with_macro_clicks_chosen:
             print("[DEBUG] User chose to run WITH macro clicks. Starting setup process.")
@@ -705,10 +720,10 @@ if __name__ == "__main__":
             print("\n[INFO] To STOP THE SCRIPT GRACEFULLY during the loop: Press 'Ctrl+Shift+C+V'.")
             print("       Alternatively, move your mouse to any of the four corners of your screen (pyautogui fail-safe).")
             print("       Or, press Ctrl+C in the terminal to force quit.")
-            print("\n[INFO] Waiting 10 seconds. Use this time to prepare your target application and read the instructions.")
-            print("[DEBUG] Starting 10-second initial delay for macro setup.")
-            time.sleep(10)
-            print("[DEBUG] 10-second initial delay for macro setup finished.")
+            print(f"\n[INFO] Waiting {initial_delay} seconds. Use this time to prepare your target application and read the instructions.") # Used new setting
+            print(f"[DEBUG] Starting {initial_delay}-second initial delay for macro setup.")
+            time.sleep(initial_delay) # Used new setting
+            print("[DEBUG] Initial delay for macro setup finished.")
 
             setup_successful = get_clicks_for_setup()
             print(f"[DEBUG] get_clicks_for_setup() returned: {setup_successful}.")
@@ -726,10 +741,10 @@ if __name__ == "__main__":
             print("\n[INFO] To STOP THE SCRIPT GRACEFULLY during the loop: Press 'Ctrl+Shift+C+V'.")
             print("       Alternatively, move your mouse to any of the four corners of your screen (pyautogui fail-safe).")
             print("       Or, press Ctrl+C in the terminal to force quit.")
-            print("\n[INFO] Waiting 10 seconds. Use this time to prepare your target application and read the instructions.")
-            print("[DEBUG] Starting 10-second initial delay for automation without macros.")
-            time.sleep(10)
-            print("[DEBUG] 10-second initial delay finished.")
+            print(f"\n[INFO] Waiting {initial_delay} seconds. Use this time to prepare your target application and read the instructions.") # Used new setting
+            print(f"[DEBUG] Starting {initial_delay}-second initial delay for automation without macros.")
+            time.sleep(initial_delay) # Used new setting
+            print("[DEBUG] Initial delay finished.")
 
 
         # --- Automation Loop (this block only executes if setup was successful or no macro clicks chosen) ---
