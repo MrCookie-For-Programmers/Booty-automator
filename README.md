@@ -1,4 +1,7 @@
-ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao) oh and to edit intervall turn the .py into a .txt, goto configurations and change the intervall there
+ALL CREDITS: google gemini, dont worry i was involed a bit too (wich is why i  fucked up the readme at the beginning lmao) 
+
+
+CHANGELOGS: Added settings menu (very useful), Added saving progress, added changing amount of macro clicks. have fun!
 
 Automated Combinatorial Typist & Macro
 
