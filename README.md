@@ -80,3 +80,5 @@ The main coding was done by Gemini, with contributions from MrCookie. Feel free 
 
 License
 This project is open-source. 
+
+Other: This is supported by all oses, for linux the dependencies might be harder to get
