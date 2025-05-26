@@ -1,4 +1,4 @@
-#Python Automation & Combination Generator
+# Python Automation & Combination Generator
 This script is a versatile Python-based automation tool that combines a powerful string combination generator with robust mouse macro and typing capabilities. It's designed to automate repetitive tasks, generate character combinations, and process text files with customizable precision.
 Features
  * Combination Generation:
