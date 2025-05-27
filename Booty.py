@@ -1601,6 +1601,7 @@ if __name__ == "__main__":
     
     # Display personalized launch message for subsequent launches
     username_display = settings.get('user_name', 'goofball')
+    print("\n[INFO] This tool is fully open source and free, IF YOU PAYED FOR THIS DEMAND YOUR MONEY BACK IMMEDIATLY!")
     print(f"Hello {username_display}, welcome to MrCookie's macro and automation tool (with main coding done by gemini), press enter to continue")
     handle_enter_to_continue()
 
